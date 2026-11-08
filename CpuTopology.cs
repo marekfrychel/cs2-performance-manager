@@ -16,66 +16,69 @@ internal static class CpuTopology
     private const int Cache = 2;
     private const int InsufficientBuffer = 122;
 
-    public static (ulong Mask, string Description) Detect()
+    public static CpuLayout Detect()
     {
+        string cpu = "Procesor";
+        ulong[] cores = Array.Empty<ulong>();
         try
         {
-            string cpu = (Registry.GetValue(
+            cpu = (Registry.GetValue(
                 @"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0",
                 "ProcessorNameString", "") as string ?? "").Trim();
+            if (cpu.Length == 0)
+                cpu = "Procesor";
+
+            ulong active = AffinitySelection.ActiveMask;
+            if (IntPtr.Size != 8 || active == 0)
+                throw new InvalidOperationException("Wybór wątków wymaga jednej grupy procesorów.");
+
+            ulong[] detected = ReadMasks(ProcessorCore);
+            ulong covered = 0;
+            foreach (ulong core in detected)
+            {
+                if (core == 0 || (covered & core) != 0)
+                    throw new InvalidOperationException("Windows zwrócił niespójną topologię rdzeni.");
+                covered |= core;
+            }
+
+            if (covered != active)
+                throw new InvalidOperationException("Nie udało się dopasować rdzeni do aktywnych wątków.");
+
+            cores = detected.OrderBy(core => BitOperations.TrailingZeroCount(core)).ToArray();
             if (!Regex.IsMatch(cpu, @"\bAMD Ryzen 9 5900X\b", RegexOptions.IgnoreCase))
-                return (0, $"Profil CCD1 wymaga Ryzen 9 5900X. Wykryto: {(cpu.Length == 0 ? "nieznany CPU" : cpu)}.");
+                return new CpuLayout(cpu, cores, Array.Empty<ulong>(), "Profile CCD dostępne dla Ryzen 9 5900X.");
 
-            if (IntPtr.Size != 8 || GetActiveProcessorGroupCount() != 1)
-                throw new InvalidOperationException("wymagany Windows x64 z jedną grupą procesorów");
-
-            ulong[] cores = ReadMasks(ProcessorCore);
-            ulong[] l3 = ReadMasks(Cache);
-            ulong mask = SelectCcd1(cores, l3);
-            string logicalCpus = string.Join(", ", Enumerable.Range(0, 64)
-                .Where(cpuIndex => (mask & (1UL << cpuIndex)) != 0));
-            return (mask, $"CCD1 bez SMT · CPU {logicalCpus} · 0x{mask:X}");
+            return new CpuLayout(cpu, cores, OrderCcds(cores, ReadMasks(Cache)), "");
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or UnauthorizedAccessException or SecurityException)
         {
-            return (0, $"Pominięto affinity: {ex.Message}.");
+            return new CpuLayout(cpu, cores, Array.Empty<ulong>(), ex.Message);
         }
     }
 
-    internal static ulong SelectCcd1(ulong[] cores, ulong[] l3)
+    internal static ulong[] OrderCcds(ulong[] cores, ulong[] l3)
     {
-        const string unexpected = "oczekiwano 12 rdzeni w dwóch rozłącznych domenach L3 po 6 rdzeni";
-        if (cores.Length != 12 || l3.Length != 2 || l3.Any(mask => mask == 0) ||
-            (l3[0] & l3[1]) != 0)
+        const string unexpected = "Profile CCD wymagają dwóch domen L3 po sześć pełnych rdzeni.";
+        if (cores.Length != 12 || l3.Length != 2 || (l3[0] & l3[1]) != 0)
             throw new InvalidOperationException(unexpected);
 
         int threadsPerCore = BitOperations.PopCount(cores[0]);
         if (threadsPerCore is < 1 or > 2)
             throw new InvalidOperationException(unexpected);
 
-        // Name the domain with the higher first Windows logical CPU number CCD1.
-        int second = BitOperations.TrailingZeroCount(l3[0]) < BitOperations.TrailingZeroCount(l3[1]) ? 1 : 0;
-        int[] coreCounts = new int[2];
-        ulong allCores = 0;
-        ulong selected = 0;
+        ulong covered = 0;
         foreach (ulong core in cores)
         {
-            if (BitOperations.PopCount(core) != threadsPerCore || (allCores & core) != 0)
+            if (BitOperations.PopCount(core) != threadsPerCore || (covered & core) != 0 ||
+                ((core & l3[0]) != core && (core & l3[1]) != core))
                 throw new InvalidOperationException(unexpected);
-
-            int domain = (core & l3[0]) == core ? 0 : 1;
-            if ((core & l3[domain]) != core)
-                throw new InvalidOperationException(unexpected);
-
-            coreCounts[domain]++;
-            allCores |= core;
-            if (domain == second)
-                selected |= 1UL << BitOperations.TrailingZeroCount(core);
+            covered |= core;
         }
 
-        if (coreCounts[0] != 6 || coreCounts[1] != 6 || allCores != (l3[0] | l3[1]))
+        if (covered != (l3[0] | l3[1]) || l3.Any(mask => BitOperations.PopCount(mask) != 6 * threadsPerCore))
             throw new InvalidOperationException(unexpected);
-        return selected;
+
+        return l3.OrderBy(mask => BitOperations.TrailingZeroCount(mask)).ToArray();
     }
 
     private static ulong[] ReadMasks(int relationship)
@@ -138,3 +141,24 @@ internal static class CpuTopology
     private static extern bool GetLogicalProcessorInformationEx(int relationship, IntPtr buffer, ref uint length);
 }
 
+
+
+internal sealed record CpuLayout(string Name, ulong[] Cores, ulong[] Ccds, string Note)
+{
+    public bool HasSmt => Cores.Any(core => BitOperations.PopCount(core) > 1);
+
+    public ulong ProfileMask(AffinityMode mode)
+    {
+        if (Ccds.Length != 2)
+            return 0;
+
+        ulong domain = mode is AffinityMode.Ccd0 or AffinityMode.Ccd0Smt ? Ccds[0] : Ccds[1];
+        if (mode is AffinityMode.Ccd0Smt or AffinityMode.Ccd1Smt)
+            return HasSmt ? domain : 0;
+
+        ulong mask = 0;
+        foreach (ulong core in Cores.Where(core => (core & domain) == core))
+            mask |= 1UL << BitOperations.TrailingZeroCount(core);
+        return mask;
+    }
+}

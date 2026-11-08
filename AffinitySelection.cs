@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace CS2PerformanceManager;
 
-internal enum AffinityMode { Ccd1, Custom, Unchanged }
+internal enum AffinityMode { Ccd1, Custom, Unchanged, Ccd0, Ccd0Smt, Ccd1Smt }
 
 internal static class AffinitySelection
 {
@@ -40,3 +40,4 @@ internal static class AffinitySelection
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetProcessAffinityMask(IntPtr process, out nuint processMask, out nuint systemMask);
 }
+
