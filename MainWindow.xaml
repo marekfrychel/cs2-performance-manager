@@ -1,0 +1,86 @@
+<Window x:Class="CS2PerformanceManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CS2 Performance Manager" Icon="App.ico" Width="566" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize"
+        Background="#111111" Foreground="#F5F2EF" FontFamily="Segoe UI" FontSize="14">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#F5F2EF" />
+            <Setter Property="Margin" Value="0,0,22,0" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="#F5F2EF" />
+            <Setter Property="Background" Value="#302821" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.82" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.65" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="24">
+        <DockPanel>
+            <Image Source="App.ico" Width="35" Height="35" Margin="0,0,10,0" />
+            <TextBlock Text="CS2 Performance Manager" Foreground="#FF963F" VerticalAlignment="Center"
+                       FontSize="25" FontWeight="SemiBold" />
+        </DockPanel>
+        <TextBlock Text="Automatyczny profil dla cs2.exe" Foreground="#C5BDB6" Margin="0,4,0,20" />
+
+        <Border Background="#1D1B19" CornerRadius="8" Padding="16">
+            <StackPanel>
+                <TextBlock Text="Procesor" FontWeight="SemiBold" />
+                <TextBlock x:Name="TopologyText" Foreground="#C5BDB6" Margin="0,5,0,15" />
+                <TextBlock Text="Stan gry" FontWeight="SemiBold" />
+                <TextBlock x:Name="GameStatus" Foreground="#C5BDB6" Margin="0,5,0,0" MaxHeight="95" />
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Przypisanie procesorów (affinity)" Foreground="#FF963F" FontWeight="SemiBold" Margin="0,18,0,8" />
+        <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="CcdOption" GroupName="Affinity" Content="CCD1 bez SMT" Checked="Affinity_Checked" />
+            <RadioButton x:Name="CustomOption" GroupName="Affinity" Content="Własne CPU" Checked="Affinity_Checked" />
+            <RadioButton x:Name="UnchangedOption" GroupName="Affinity" Content="Bez zmian" Checked="Affinity_Checked" />
+        </StackPanel>
+        <StackPanel x:Name="CustomPanel" Visibility="Collapsed" Margin="0,10,0,0">
+            <TextBlock Text="Numery procesorów logicznych, np. 0, 2, 4" Foreground="#C5BDB6" />
+            <TextBox x:Name="CustomCpus" Background="#24201D" Foreground="#F5F2EF"
+                     BorderBrush="#9C541F" CaretBrush="#FF963F" Padding="8" Margin="0,5,0,0" MaxLength="300" />
+            <TextBlock x:Name="AvailableCpus" Foreground="#C5BDB6" FontSize="12" Margin="0,5,0,0" />
+        </StackPanel>
+        <TextBlock Text="Priorytet gry" Foreground="#FF963F" FontWeight="SemiBold" Margin="0,18,0,8" />
+        <StackPanel Orientation="Horizontal">
+            <RadioButton x:Name="NormalPriority" GroupName="Priority" Content="Normal" IsChecked="True" />
+            <RadioButton x:Name="AbovePriority" GroupName="Priority" Content="Above Normal" />
+            <RadioButton x:Name="HighPriority" GroupName="Priority" Content="High" />
+        </StackPanel>
+        <CheckBox x:Name="StartupOption" Foreground="#F5F2EF"
+                  Content="Uruchamiaj w zasobniku po zalogowaniu do Windows" Margin="0,15,0,16" />
+
+        <StackPanel Orientation="Horizontal">
+            <Button Content="Zapisz i zastosuj" Click="Save_Click" Background="#AB4B00" />
+            <Button Content="Zastosuj ponownie" Click="Retry_Click" Margin="8,0,0,0" />
+        </StackPanel>
+        <TextBlock x:Name="Feedback" Foreground="#FFAD6B" Margin="0,12,0,0" />
+        <TextBlock Text="Zamknięcie okna chowa aplikację do zasobnika." FontSize="12"
+                   Foreground="#C5BDB6" Margin="0,8,0,0" />
+    </StackPanel>
+</Window>
+
