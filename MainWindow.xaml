@@ -1,8 +1,8 @@
 <Window x:Class="CS2PerformanceManager.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="CS2 Performance Manager" Icon="App.ico" Width="730" SizeToContent="Height" MaxHeight="790"
-        MinWidth="460" MinHeight="300" WindowStartupLocation="CenterScreen"
+        Title="CS2 Performance Manager" Icon="App.ico" Width="730" Height="510"
+        MinWidth="460" MinHeight="340" WindowStartupLocation="CenterScreen"
         Background="#101011" Foreground="#F6F3EF" FontFamily="Segoe UI" FontSize="13"
         UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
     <Window.Resources>
@@ -110,29 +110,22 @@
     </Window.Resources>
     <Grid ClipToBounds="True">
         <Grid.Background>
-            <LinearGradientBrush StartPoint="1,0" EndPoint="0,1">
-                <GradientStop Color="#352823" Offset="0"/>
-                <GradientStop Color="#201B1C" Offset=".46"/>
-                <GradientStop Color="#111113" Offset="1"/>
-            </LinearGradientBrush>
+            <RadialGradientBrush Center=".91,0" GradientOrigin=".91,0" RadiusX=".95" RadiusY="1.35">
+                <GradientStop Color="#37312F" Offset="0"/>
+                <GradientStop Color="#242325" Offset=".42"/>
+                <GradientStop Color="#16171B" Offset="1"/>
+            </RadialGradientBrush>
         </Grid.Background>
-        <Viewbox HorizontalAlignment="Right" VerticalAlignment="Top" Width="535"
-                 Opacity=".12" IsHitTestVisible="False" Margin="0,-13,-30,0">
-            <Canvas Width="560" Height="290">
-                <Path Stroke="#D38C69" StrokeThickness="2.5" StrokeLineJoin="Round"
-                      Data="M 18,112 L 59,112 59,75 148,75 148,44 215,44 215,83 363,83 363,49 507,49 507,142 466,142 466,201 380,201 380,257 240,257 240,215 120,215 120,178 56,178 56,147 18,147 Z M 59,112 L 174,112 174,154 312,154 312,109 466,109 466,142 M 120,178 L 174,178 174,154 M 240,215 L 275,215 275,154 M 312,154 L 380,154 380,201"/>
-                <Ellipse Width="43" Height="43" Canvas.Left="421" Canvas.Top="62" Stroke="#FFB587" StrokeThickness="2"/>
-                <TextBlock Text="A" Canvas.Left="435" Canvas.Top="67" FontSize="21" Foreground="#FFE0B9"/>
-                <Ellipse Width="43" Height="43" Canvas.Left="94" Canvas.Top="94" Stroke="#FFB587" StrokeThickness="2"/>
-                <TextBlock Text="B" Canvas.Left="108" Canvas.Top="99" FontSize="21" Foreground="#FFE0B9"/>
-            </Canvas>
-        </Viewbox>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="25,18,25,20">
-                <StackPanel.LayoutTransform>
-                    <ScaleTransform x:Name="UiScale"/>
-                </StackPanel.LayoutTransform>
-                <DockPanel Margin="0,0,0,18">
+        <Grid Margin="29,23,29,22">
+            <Grid.LayoutTransform>
+                <ScaleTransform x:Name="UiScale"/>
+            </Grid.LayoutTransform>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0" Margin="0,0,0,22">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                         <Button x:Name="ZoomOut" Content="−" Click="ZoomOut_Click" AutomationProperties.Name="Zmniejsz interfejs"
                                 Padding="7,4"/>
@@ -143,34 +136,37 @@
                     </StackPanel>
                     <TextBlock x:Name="CpuName" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </DockPanel>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          VerticalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Text="Wątki dla CS2" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <StackPanel>
+                    <TextBlock Text="Wątki dla CS2" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12"/>
                     <StackPanel Orientation="Horizontal">
                         <RadioButton x:Name="UnchangedOption" GroupName="Profile" Content="Windows" Checked="Profile_Checked"/>
                         <RadioButton x:Name="CustomOption" GroupName="Profile" Content="Ręcznie" Checked="Profile_Checked" Click="OpenMap_Click"/>
                     </StackPanel>
-                    <TextBlock x:Name="SavedSelection" Foreground="#E1CEC3" Margin="0,3,0,6"/>
+                    <TextBlock x:Name="SavedSelection" Foreground="#E1CEC3" Margin="0,7,0,12"/>
                     <Expander x:Name="AdvancedPanel" Header="Profile CCD i priorytet" Foreground="#F3E7E0" Margin="0,5,0,0"
                               Expanded="Section_Expanded">
-                        <StackPanel Margin="0,9,0,0">
+                        <StackPanel Margin="0,13,0,0">
                             <WrapPanel>
                                 <RadioButton x:Name="Ccd0NoSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
                                 <RadioButton x:Name="Ccd0WithSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
                                 <RadioButton x:Name="Ccd1NoSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
                                 <RadioButton x:Name="Ccd1WithSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
                             </WrapPanel>
-                            <TextBlock x:Name="TopologyNote" Foreground="#C8B5AC" Margin="0,0,0,8"/>
-                            <TextBlock Text="Priorytet gry" FontWeight="SemiBold" Margin="0,4,0,6"/>
+                            <TextBlock x:Name="TopologyNote" Foreground="#C8B5AC" Margin="0,0,0,12"/>
+                            <TextBlock Text="Priorytet gry" FontWeight="SemiBold" Margin="0,12,0,9"/>
                             <WrapPanel>
                                 <RadioButton x:Name="NormalPriority" GroupName="Priority" Content="Normal" IsChecked="True"/>
                                 <RadioButton x:Name="AbovePriority" GroupName="Priority" Content="Above Normal"/>
                                 <RadioButton x:Name="HighPriority" GroupName="Priority" Content="High"/>
                             </WrapPanel>
-                            <CheckBox x:Name="StartupOption" Content="Uruchamiaj po zalogowaniu" Margin="0,6,0,0"/>
+                            <CheckBox x:Name="StartupOption" Content="Uruchamiaj po zalogowaniu" Margin="0,12,0,0"/>
                         </StackPanel>
                     </Expander>
                 </StackPanel>
-                <Separator Background="#2ADBC1B2" Margin="0,12,0,12" />
+                <Separator Background="#2ADBC1B2" Margin="0,16,0,16" />
                 <Expander x:Name="MapPanel" Header="Mapa procesora" Foreground="#F3E7E0" Expanded="Section_Expanded">
                     <StackPanel Margin="0,10,0,0">
                         <TextBlock x:Name="CpuSummary" Foreground="#D7C4BA"/>
@@ -180,11 +176,33 @@
                         <StackPanel x:Name="CpuGroups"/>
                     </StackPanel>
                 </Expander>
-                <Separator Background="#2ADBC1B2" Margin="0,12,0,12" />
-                <DockPanel LastChildFill="True">
-                    <Button DockPanel.Dock="Right" Content="Zapisz i zastosuj" Click="Save_Click"
-                            Background="#FFBA8C" Foreground="#24120A" FontWeight="SemiBold"
-                            VerticalAlignment="Center" Margin="12,0,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+            <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                <Separator Background="#2ADBC1B2" />
+                <DockPanel LastChildFill="True" Margin="0,14,0,0">
+                    <Button DockPanel.Dock="Right" Click="Save_Click" ToolTip="Zapisz i zastosuj"
+                            AutomationProperties.Name="Zapisz i zastosuj" VerticalAlignment="Center"
+                            Width="42" Height="42" Margin="14,0,0,0" Background="#FFBA8C" Foreground="#24120A">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ApplySurface" CornerRadius="21" Background="{TemplateBinding Background}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="ApplySurface" Property="Background" Value="#FFD0B0"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="ApplySurface" Property="Opacity" Value=".8"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Path Width="20" Height="20" Stretch="Uniform" Stroke="#24120A" StrokeThickness="1.8"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M 17,6 A 7,7 0 1 0 18,13 M 17,2 L 17,7 L 12,7"/>
+                    </Button>
                     <StackPanel>
                         <TextBlock Text="STAN CS2" Foreground="#FFB68A" FontSize="11" FontWeight="SemiBold"/>
                         <TextBlock x:Name="GameStatus" Foreground="#E8D8D0"/>
@@ -192,10 +210,6 @@
                     </StackPanel>
                 </DockPanel>
             </StackPanel>
-        </ScrollViewer>
+        </Grid>
     </Grid>
 </Window>
-
-
-
-
