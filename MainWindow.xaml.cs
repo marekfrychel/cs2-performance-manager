@@ -91,6 +91,8 @@ public partial class MainWindow : Window
             Feedback.Text = "Zapisany profil jest niedostępny na tym procesorze.";
         }
 
+        UpdateSavedSelection();
+
         NormalPriority.IsChecked = preferences.Priority == ProcessPriorityClass.Normal;
         AbovePriority.IsChecked = preferences.Priority == ProcessPriorityClass.AboveNormal;
         HighPriority.IsChecked = preferences.Priority == ProcessPriorityClass.High;
@@ -107,7 +109,7 @@ public partial class MainWindow : Window
         }
 
         monitor = new GameMonitor();
-        var iconResource = Application.GetResourceStream(new Uri("App.ico", UriKind.Relative));
+        var iconResource = Application.GetResourceStream(new Uri("/CS2PerformanceManager;component/App.ico", UriKind.Relative));
         using (var stream = iconResource.Stream)
         using (var icon = new System.Drawing.Icon(stream))
             trayIcon = (System.Drawing.Icon)icon.Clone();
@@ -166,6 +168,7 @@ public partial class MainWindow : Window
             var updated = new Preferences(priority, StartupOption.IsChecked == true, selectedMode, customCpus);
             updated.Save();
             preferences = updated;
+            UpdateSavedSelection();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -248,19 +251,12 @@ public partial class MainWindow : Window
         {
             int[] cpus = CpuNumbers(core).ToArray();
             int coreIndex = Array.IndexOf(topology.Cores, core);
-            var card = new StackPanel { Margin = new Thickness(0, 0, 8, 8) };
-            rows.Children.Add(new Border
-            {
-                Child = card,
-                Background = new SolidColorBrush(Color.FromRgb(49, 37, 36)),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(8, 6, 1, 0),
-                Margin = new Thickness(0, 0, 8, 8)
-            });
+            var card = new StackPanel { Margin = new Thickness(0, 0, 12, 10) };
+            rows.Children.Add(card);
             card.Children.Add(new TextBlock
             {
-                Text = $"RDZEŃ {coreIndex:00}",
-                FontSize = 10,
+                Text = $"Rdzeń {coreIndex}",
+                FontSize = 12,
                 Foreground = Brushes.LightGray,
                 Margin = new Thickness(0, 0, 0, 5)
             });
@@ -272,7 +268,7 @@ public partial class MainWindow : Window
                 {
                     Content = $"CPU {cpu}",
                     Style = (Style)FindResource("Tile"),
-                    MinWidth = 60,
+                    MinWidth = 51,
                     Margin = new Thickness(0, 0, 4, 0)
                 };
                 AutomationProperties.SetName(button, $"Rdzeń {coreIndex}, procesor logiczny {cpu}");
@@ -291,13 +287,15 @@ public partial class MainWindow : Window
     private void Profile_Checked(object sender, RoutedEventArgs e)
     {
         selectedMode = profiles.First(entry => ReferenceEquals(entry.Value, sender)).Key;
+        if (selectedMode != AffinityMode.Unchanged)
+            MapPanel.IsExpanded = true;
         if (selectedMode == AffinityMode.Custom)
             UpdateSelectionSummary();
         else
             SetThreadSelection(selectedMode == AffinityMode.Unchanged ? 0 : topology.ProfileMask(selectedMode));
     }
 
-    private void Manual_Click(object sender, RoutedEventArgs e) => MapPanel.IsExpanded = true;
+    private void OpenMap_Click(object sender, RoutedEventArgs e) => MapPanel.IsExpanded = true;
 
     private void OneThread_Click(object sender, RoutedEventArgs e)
     {
@@ -343,10 +341,27 @@ public partial class MainWindow : Window
 
     private void UpdateSelectionSummary()
     {
-        int count = threadButtons.Values.Count(button => button.IsChecked == true);
+        ulong mask = SelectedMask();
         SelectionSummary.Text = selectedMode == AffinityMode.Unchanged
-            ? "Wybór wątków: Windows"
-            : $"Zaznaczone wątki: {count} z {threadButtons.Count}";
+            ? "Wybrane: Windows"
+            : "Wybrane: " + DescribeSelection(mask);
+    }
+
+    private void UpdateSavedSelection()
+    {
+        ulong mask = ResolveMask(preferences);
+        SavedSelection.Text = preferences.Affinity == AffinityMode.Unchanged
+            ? "Zapisane dla CS2: Windows"
+            : mask == 0 ? "Zapisany wybór wątków jest niedostępny."
+            : $"Zapisane dla CS2: {profiles[preferences.Affinity].Content} · {DescribeSelection(mask)}";
+        SavedSelection.ToolTip = mask == 0 ? null : "CPU " + string.Join(", ", CpuNumbers(mask));
+    }
+
+    private string DescribeSelection(ulong mask)
+    {
+        int cores = topology.Cores.Count(core => (core & mask) != 0);
+        int threads = System.Numerics.BitOperations.PopCount(mask);
+        return $"{cores} rdzeni · {threads} wątków";
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -394,6 +409,9 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 }
+
+
+
 
 
 

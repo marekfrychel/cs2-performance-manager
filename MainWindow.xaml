@@ -3,17 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="CS2 Performance Manager" Icon="App.ico" Width="800" SizeToContent="Height" MaxHeight="790"
         MinWidth="560" MinHeight="340" WindowStartupLocation="CenterScreen"
-        Background="#101011" Foreground="#F6F3EF" FontFamily="Segoe UI" FontSize="14">
+        Background="#101011" Foreground="#F6F3EF" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="15"
+        UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-        <Style x:Key="Panel" TargetType="Border">
-            <Setter Property="Background" Value="#272021" />
-            <Setter Property="BorderBrush" Value="#4C3834" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="18" />
         </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#392C2B" />
@@ -81,7 +75,7 @@
             </LinearGradientBrush>
         </Grid.Background>
         <Viewbox HorizontalAlignment="Right" VerticalAlignment="Top" Width="535"
-                 Opacity=".40" IsHitTestVisible="False" Margin="0,-13,-30,0">
+                 Opacity=".27" IsHitTestVisible="False" Margin="0,-13,-30,0">
             <Canvas Width="560" Height="290">
                 <Path Stroke="#D38C69" StrokeThickness="5" StrokeLineJoin="Round"
                       Data="M 18,112 L 59,112 59,75 148,75 148,44 215,44 215,83 363,83 363,49 507,49 507,142 466,142 466,201 380,201 380,257 240,257 240,215 120,215 120,178 56,178 56,147 18,147 Z M 59,112 L 174,112 174,154 312,154 312,109 466,109 466,142 M 120,178 L 174,178 174,154 M 240,215 L 275,215 275,154 M 312,154 L 380,154 380,201"/>
@@ -96,48 +90,47 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
                     <Image Source="App.ico" Width="31" Height="31" Margin="0,0,8,0"/>
                     <TextBlock Text="CS2 Performance Manager" VerticalAlignment="Center"
-                               FontWeight="SemiBold" Foreground="#F4DACC"/>
+                               FontWeight="SemiBold" Foreground="#F3E7E0"/>
                 </StackPanel>
-                <TextBlock x:Name="CpuName" FontSize="32" FontWeight="SemiBold" Margin="0,0,0,22"/>
-                <Border Style="{StaticResource Panel}" Margin="0,0,0,9">
-                    <StackPanel>
-                        <TextBlock Text="Wątki dla CS2" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                        <StackPanel Orientation="Horizontal">
-                            <RadioButton x:Name="UnchangedOption" GroupName="Profile" Content="Windows" Checked="Profile_Checked"/>
-                            <RadioButton x:Name="CustomOption" GroupName="Profile" Content="Ręcznie" Checked="Profile_Checked" Click="Manual_Click"/>
-                        </StackPanel>
-                        <Expander x:Name="AdvancedPanel" Header="Profile CCD i priorytet" Foreground="#F4DACC" Margin="0,5,0,0"
-                                  Expanded="Section_Expanded">
-                            <StackPanel Margin="0,9,0,0">
-                                <WrapPanel>
-                                    <RadioButton x:Name="Ccd0NoSmt" GroupName="Profile" Checked="Profile_Checked"/>
-                                    <RadioButton x:Name="Ccd0WithSmt" GroupName="Profile" Checked="Profile_Checked"/>
-                                    <RadioButton x:Name="Ccd1NoSmt" GroupName="Profile" Checked="Profile_Checked"/>
-                                    <RadioButton x:Name="Ccd1WithSmt" GroupName="Profile" Checked="Profile_Checked"/>
-                                </WrapPanel>
-                                <TextBlock x:Name="TopologyNote" Foreground="#C8B5AC" Margin="0,0,0,8"/>
-                                <TextBlock Text="Priorytet gry" FontWeight="SemiBold" Margin="0,4,0,6"/>
-                                <WrapPanel>
-                                    <RadioButton x:Name="NormalPriority" GroupName="Priority" Content="Normal" IsChecked="True"/>
-                                    <RadioButton x:Name="AbovePriority" GroupName="Priority" Content="Above Normal"/>
-                                    <RadioButton x:Name="HighPriority" GroupName="Priority" Content="High"/>
-                                </WrapPanel>
-                                <CheckBox x:Name="StartupOption" Content="Uruchamiaj po zalogowaniu" Margin="0,6,0,0"/>
-                            </StackPanel>
-                        </Expander>
+                <TextBlock x:Name="CpuName" FontFamily="Segoe UI Variable Display, Segoe UI" FontSize="34" FontWeight="SemiBold" Margin="0,0,0,18"/>
+                <StackPanel>
+                    <TextBlock Text="Wątki dla CS2" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="UnchangedOption" GroupName="Profile" Content="Windows" Checked="Profile_Checked"/>
+                        <RadioButton x:Name="CustomOption" GroupName="Profile" Content="Ręcznie" Checked="Profile_Checked" Click="OpenMap_Click"/>
                     </StackPanel>
-                </Border>
-                <Border Style="{StaticResource Panel}" Margin="0,0,0,12">
-                    <Expander x:Name="MapPanel" Header="Mapa procesora" Foreground="#F4DACC" Expanded="Section_Expanded">
-                        <StackPanel Margin="0,10,0,0">
-                            <TextBlock x:Name="CpuSummary" Foreground="#D7C4BA"/>
-                            <TextBlock x:Name="SelectionSummary" Foreground="#FFB68A" Margin="0,3,0,8"/>
-                            <Button x:Name="OneThreadButton" Content="Jeden wątek na rdzeń" HorizontalAlignment="Left"
-                                    Click="OneThread_Click" Margin="0,0,0,10"/>
-                            <StackPanel x:Name="CpuGroups"/>
+                    <TextBlock x:Name="SavedSelection" Foreground="#E1CEC3" Margin="0,3,0,6"/>
+                    <Expander x:Name="AdvancedPanel" Header="Profile CCD i priorytet" Foreground="#F3E7E0" Margin="0,5,0,0"
+                              Expanded="Section_Expanded">
+                        <StackPanel Margin="0,9,0,0">
+                            <WrapPanel>
+                                <RadioButton x:Name="Ccd0NoSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
+                                <RadioButton x:Name="Ccd0WithSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
+                                <RadioButton x:Name="Ccd1NoSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
+                                <RadioButton x:Name="Ccd1WithSmt" GroupName="Profile" Checked="Profile_Checked" Click="OpenMap_Click"/>
+                            </WrapPanel>
+                            <TextBlock x:Name="TopologyNote" Foreground="#C8B5AC" Margin="0,0,0,8"/>
+                            <TextBlock Text="Priorytet gry" FontWeight="SemiBold" Margin="0,4,0,6"/>
+                            <WrapPanel>
+                                <RadioButton x:Name="NormalPriority" GroupName="Priority" Content="Normal" IsChecked="True"/>
+                                <RadioButton x:Name="AbovePriority" GroupName="Priority" Content="Above Normal"/>
+                                <RadioButton x:Name="HighPriority" GroupName="Priority" Content="High"/>
+                            </WrapPanel>
+                            <CheckBox x:Name="StartupOption" Content="Uruchamiaj po zalogowaniu" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Expander>
-                </Border>
+                </StackPanel>
+                <Separator Background="#44DBC1B2" Margin="0,12,0,12" />
+                <Expander x:Name="MapPanel" Header="Mapa procesora" Foreground="#F3E7E0" Expanded="Section_Expanded">
+                    <StackPanel Margin="0,10,0,0">
+                        <TextBlock x:Name="CpuSummary" Foreground="#D7C4BA"/>
+                        <TextBlock x:Name="SelectionSummary" Foreground="#FFB68A" Margin="0,3,0,8"/>
+                        <Button x:Name="OneThreadButton" Content="Jeden wątek na rdzeń" HorizontalAlignment="Left"
+                                Click="OneThread_Click" Margin="0,0,0,10"/>
+                        <StackPanel x:Name="CpuGroups"/>
+                    </StackPanel>
+                </Expander>
+                <Separator Background="#44DBC1B2" Margin="0,12,0,12" />
                 <DockPanel LastChildFill="True">
                     <Button DockPanel.Dock="Right" Content="Zapisz i zastosuj" Click="Save_Click"
                             Background="#FFAC79" Foreground="#24120A" FontWeight="SemiBold"
@@ -152,3 +145,6 @@
         </ScrollViewer>
     </Grid>
 </Window>
+
+
+
