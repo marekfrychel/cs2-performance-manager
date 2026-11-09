@@ -4,3 +4,5 @@ publish/
 .vs/
 *.user
 *.suo
+work/
+outputs/

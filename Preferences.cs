@@ -29,11 +29,13 @@ internal sealed record Preferences(ProcessPriorityClass Priority, bool StartWith
     public static Preferences Load()
     {
         if (!File.Exists(SettingsPath))
-            return new Preferences(ProcessPriorityClass.Normal);
+            return new Preferences(ProcessPriorityClass.Normal, Affinity: AffinityMode.Unchanged);
 
         var settings = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(SettingsPath), JsonOptions);
         if (settings?.Priority is not (ProcessPriorityClass.Normal or ProcessPriorityClass.AboveNormal or ProcessPriorityClass.High))
             throw new JsonException("Wybierz Normal, Above Normal lub High i zapisz ustawienia.");
+        if (!Enum.IsDefined(settings.Affinity))
+            throw new JsonException("Nieprawidłowy tryb wyboru wątków.");
         return settings;
     }
 
@@ -72,5 +74,6 @@ internal sealed record Preferences(ProcessPriorityClass Priority, bool StartWith
         }
     }
 }
+
 
 

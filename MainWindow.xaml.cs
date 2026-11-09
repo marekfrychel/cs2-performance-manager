@@ -14,6 +14,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Forms = System.Windows.Forms;
 
 namespace CS2PerformanceManager;
@@ -24,7 +25,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer timer;
     private readonly Forms.NotifyIcon tray;
     private readonly Forms.ContextMenuStrip trayMenu;
-    private Preferences preferences = new(ProcessPriorityClass.Normal);
+    private Preferences preferences = new(ProcessPriorityClass.Normal, Affinity: AffinityMode.Unchanged);
     private bool exiting;
     private readonly CpuLayout topology;
     private readonly Dictionary<int, ToggleButton> threadButtons = new();
@@ -65,15 +66,17 @@ public partial class MainWindow : Window
                 AffinityMode.Custom => threadButtons.Count != 0,
                 _ => topology.ProfileMask(mode) != 0
             };
-            AutomationProperties.SetName(button, mode switch
-            {
-                AffinityMode.Ccd0 => "CCD0 bez SMT",
-                AffinityMode.Ccd0Smt => "CCD0 z SMT",
-                AffinityMode.Ccd1 => "CCD1 bez SMT",
-                AffinityMode.Ccd1Smt => "CCD1 z SMT",
-                _ => button.Content.ToString()
-            });
+            if (mode is AffinityMode.Custom or AffinityMode.Unchanged)
+                continue;
+
+            button.Visibility = button.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            int group = mode is AffinityMode.Ccd0 or AffinityMode.Ccd0Smt ? 0 : 1;
+            bool smt = mode is AffinityMode.Ccd0Smt or AffinityMode.Ccd1Smt;
+            button.Content = $"{topology.GroupName(group)} {(smt ? "+" : "−")} SMT";
         }
+        AdvancedPanel.Header = topology.Groups.Length == 0 ? "Priorytet i autostart" :
+            topology.NamedCcds ? "Profile CCD i priorytet" : "Profile L3 i priorytet";
+        OneThreadButton.IsEnabled = threadButtons.Count != 0;
 
         RadioButton initial = profiles[preferences.Affinity];
         if (initial.IsEnabled)
@@ -153,7 +156,7 @@ public partial class MainWindow : Window
         ulong mask = SelectedMask();
         if (selectedMode == AffinityMode.Custom && mask == 0)
         {
-            Feedback.Text = "Zaznacz co najmniej jeden wątek albo wybierz „Bez zmian”.";
+            Feedback.Text = "Zaznacz co najmniej jeden wątek albo wybierz „Windows”.";
             return;
         }
 
@@ -213,16 +216,15 @@ public partial class MainWindow : Window
         CpuName.Text = topology.Name;
         CpuSummary.Text = topology.Cores.Length == 0 ? "Mapa wątków niedostępna" :
             $"{topology.Cores.Length} rdzeni  /  {CpuNumbers(AffinitySelection.ActiveMask).Count()} wątków";
-        TopologyNote.Text = topology.Ccds.Length == 2 && !topology.HasSmt
-            ? "Windows udostępnia jeden wątek na rdzeń. Profile + SMT są niedostępne."
-            : topology.Note;
+        TopologyNote.Text = topology.Note;
+        TopologyNote.Visibility = topology.Note.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
 
-        if (topology.Ccds.Length == 2)
+        if (topology.Groups.Length != 0)
         {
-            for (int i = 0; i < topology.Ccds.Length; i++)
+            for (int i = 0; i < topology.Groups.Length; i++)
             {
-                ulong domain = topology.Ccds[i];
-                AddCpuGroup($"CCD{i}", topology.Cores.Where(core => (core & domain) == core));
+                ulong domain = topology.Groups[i];
+                AddCpuGroup(topology.GroupName(i), topology.Cores.Where(core => (core & domain) == core));
             }
         }
         else if (topology.Cores.Length != 0)
@@ -250,7 +252,7 @@ public partial class MainWindow : Window
             rows.Children.Add(new Border
             {
                 Child = card,
-                Background = new SolidColorBrush(Color.FromRgb(33, 33, 36)),
+                Background = new SolidColorBrush(Color.FromRgb(49, 37, 36)),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(8, 6, 1, 0),
                 Margin = new Thickness(0, 0, 8, 8)
@@ -277,6 +279,7 @@ public partial class MainWindow : Window
                 button.Click += (_, _) =>
                 {
                     CustomOption.IsChecked = true;
+                    AnimateReveal(button);
                     UpdateSelectionSummary();
                 };
                 threadButtons.Add(cpu, button);
@@ -294,10 +297,44 @@ public partial class MainWindow : Window
             SetThreadSelection(selectedMode == AffinityMode.Unchanged ? 0 : topology.ProfileMask(selectedMode));
     }
 
+    private void Manual_Click(object sender, RoutedEventArgs e) => MapPanel.IsExpanded = true;
+
+    private void OneThread_Click(object sender, RoutedEventArgs e)
+    {
+        CustomOption.IsChecked = true;
+        SetThreadSelection(topology.OneThreadPerCore());
+    }
+
+    private void Section_Expanded(object sender, RoutedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, e.OriginalSource) ||
+            sender is not Expander { Content: UIElement content })
+            return;
+
+        AnimateReveal(content);
+    }
+
+    private static void AnimateReveal(UIElement element)
+    {
+        if (!SystemParameters.ClientAreaAnimation)
+            return;
+
+        element.BeginAnimation(UIElement.OpacityProperty,
+            new DoubleAnimation(.45, 1, TimeSpan.FromMilliseconds(180)) { FillBehavior = FillBehavior.Stop });
+    }
+
     private void SetThreadSelection(ulong mask)
     {
         foreach (var (cpu, button) in threadButtons)
-            button.IsChecked = (mask & (1UL << cpu)) != 0;
+        {
+            bool isSelected = (mask & (1UL << cpu)) != 0;
+            if (button.IsChecked == isSelected)
+                continue;
+
+            button.IsChecked = isSelected;
+            if (button.IsVisible)
+                AnimateReveal(button);
+        }
         UpdateSelectionSummary();
     }
 
@@ -308,7 +345,7 @@ public partial class MainWindow : Window
     {
         int count = threadButtons.Values.Count(button => button.IsChecked == true);
         SelectionSummary.Text = selectedMode == AffinityMode.Unchanged
-            ? "Affinity: bez zmian"
+            ? "Wybór wątków: Windows"
             : $"Zaznaczone wątki: {count} z {threadButtons.Count}";
     }
 
@@ -357,6 +394,8 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 }
+
+
 
 
 

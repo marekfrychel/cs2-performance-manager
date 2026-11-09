@@ -45,10 +45,8 @@ internal static class CpuTopology
                 throw new InvalidOperationException("Nie udało się dopasować rdzeni do aktywnych wątków.");
 
             cores = detected.OrderBy(core => BitOperations.TrailingZeroCount(core)).ToArray();
-            if (!Regex.IsMatch(cpu, @"\bAMD Ryzen 9 5900X\b", RegexOptions.IgnoreCase))
-                return new CpuLayout(cpu, cores, Array.Empty<ulong>(), "Profile CCD dostępne dla Ryzen 9 5900X.");
-
-            return new CpuLayout(cpu, cores, OrderCcds(cores, ReadMasks(Cache)), "");
+            bool namedCcds = Regex.IsMatch(cpu, @"\bAMD Ryzen [59] (5600X|5900X)\b", RegexOptions.IgnoreCase);
+            return new CpuLayout(cpu, cores, OrderGroups(cores, ReadMasks(Cache)), "", namedCcds);
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or UnauthorizedAccessException or SecurityException)
         {
@@ -56,29 +54,22 @@ internal static class CpuTopology
         }
     }
 
-    internal static ulong[] OrderCcds(ulong[] cores, ulong[] l3)
+    internal static ulong[] OrderGroups(ulong[] cores, ulong[] caches)
     {
-        const string unexpected = "Profile CCD wymagają dwóch domen L3 po sześć pełnych rdzeni.";
-        if (cores.Length != 12 || l3.Length != 2 || (l3[0] & l3[1]) != 0)
-            throw new InvalidOperationException(unexpected);
-
-        int threadsPerCore = BitOperations.PopCount(cores[0]);
-        if (threadsPerCore is < 1 or > 2)
-            throw new InvalidOperationException(unexpected);
-
         ulong covered = 0;
-        foreach (ulong core in cores)
+        ulong allCores = cores.Aggregate(0UL, (mask, core) => mask | core);
+        foreach (ulong cache in caches.Distinct())
         {
-            if (BitOperations.PopCount(core) != threadsPerCore || (covered & core) != 0 ||
-                ((core & l3[0]) != core && (core & l3[1]) != core))
-                throw new InvalidOperationException(unexpected);
-            covered |= core;
+            if (cache == 0 || (covered & cache) != 0 || (cache & ~allCores) != 0 ||
+                cores.Any(core => (core & cache) != 0 && (core & cache) != core))
+                throw new InvalidOperationException("Nie udało się przypisać pełnych rdzeni do grup L3.");
+            covered |= cache;
         }
 
-        if (covered != (l3[0] | l3[1]) || l3.Any(mask => BitOperations.PopCount(mask) != 6 * threadsPerCore))
-            throw new InvalidOperationException(unexpected);
+        if (covered != allCores)
+            throw new InvalidOperationException("Grupy L3 nie obejmują wszystkich rdzeni.");
 
-        return l3.OrderBy(mask => BitOperations.TrailingZeroCount(mask)).ToArray();
+        return caches.Distinct().OrderBy(mask => BitOperations.TrailingZeroCount(mask)).ToArray();
     }
 
     private static ulong[] ReadMasks(int relationship)
@@ -107,7 +98,6 @@ internal static class CpuTopology
 
                 if (relationship == ProcessorCore ||
                     (size >= 20 && Marshal.ReadByte(record, 8) == 3 &&
-                     Marshal.ReadInt32(record, 12) == 32 * 1024 * 1024 &&
                      Marshal.ReadInt32(record, 16) == 0)) // Unified L3
                 {
                     // x64 Win32 layout. Older Windows cache records reserve the group count field.
@@ -133,9 +123,6 @@ internal static class CpuTopology
         }
     }
 
-    [DllImport("kernel32.dll")]
-    private static extern ushort GetActiveProcessorGroupCount();
-
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetLogicalProcessorInformationEx(int relationship, IntPtr buffer, ref uint length);
@@ -143,22 +130,29 @@ internal static class CpuTopology
 
 
 
-internal sealed record CpuLayout(string Name, ulong[] Cores, ulong[] Ccds, string Note)
+internal sealed record CpuLayout(string Name, ulong[] Cores, ulong[] Groups, string Note, bool NamedCcds = false)
 {
-    public bool HasSmt => Cores.Any(core => BitOperations.PopCount(core) > 1);
+    public string GroupName(int index) => NamedCcds ? $"CCD{index}" : $"Grupa L3 {index + 1}";
+
+    public ulong OneThreadPerCore(ulong domain = ulong.MaxValue) => Cores
+        .Where(core => (core & domain) == core)
+        .Aggregate(0UL, (mask, core) => mask | (1UL << BitOperations.TrailingZeroCount(core)));
 
     public ulong ProfileMask(AffinityMode mode)
     {
-        if (Ccds.Length != 2)
+        int index = mode switch
+        {
+            AffinityMode.Ccd0 or AffinityMode.Ccd0Smt => 0,
+            AffinityMode.Ccd1 or AffinityMode.Ccd1Smt => 1,
+            _ => -1
+        };
+        if (index < 0 || index >= Groups.Length)
             return 0;
 
-        ulong domain = mode is AffinityMode.Ccd0 or AffinityMode.Ccd0Smt ? Ccds[0] : Ccds[1];
-        if (mode is AffinityMode.Ccd0Smt or AffinityMode.Ccd1Smt)
-            return HasSmt ? domain : 0;
-
-        ulong mask = 0;
-        foreach (ulong core in Cores.Where(core => (core & domain) == core))
-            mask |= 1UL << BitOperations.TrailingZeroCount(core);
-        return mask;
+        ulong domain = Groups[index];
+        ulong singleThreads = OneThreadPerCore(domain);
+        return mode is AffinityMode.Ccd0Smt or AffinityMode.Ccd1Smt
+            ? (domain != singleThreads ? domain : 0)
+            : singleThreads;
     }
 }
