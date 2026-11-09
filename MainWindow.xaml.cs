@@ -32,6 +32,8 @@ public partial class MainWindow : Window
     private Dictionary<AffinityMode, RadioButton> profiles = null!;
     private AffinityMode selectedMode;
     private readonly System.Drawing.Icon trayIcon;
+    private static readonly int[] ZoomLevels = { 80, 90, 100, 110, 125, 150 };
+    private int zoomIndex;
 
     public MainWindow()
     {
@@ -45,6 +47,9 @@ public partial class MainWindow : Window
         {
             Feedback.Text = $"Użyto Normal. Błąd odczytu ustawień: {ex.Message}";
         }
+
+        int savedZoom = Array.IndexOf(ZoomLevels, preferences.ZoomPercent);
+        SetZoom(savedZoom >= 0 ? savedZoom : Array.IndexOf(ZoomLevels, 100));
 
         topology = CpuTopology.Detect();
         BuildCpuMap();
@@ -165,7 +170,7 @@ public partial class MainWindow : Window
         string customCpus = string.Join(", ", CpuNumbers(mask));
         try
         {
-            var updated = new Preferences(priority, StartupOption.IsChecked == true, selectedMode, customCpus);
+            var updated = new Preferences(priority, StartupOption.IsChecked == true, selectedMode, customCpus, ZoomLevels[zoomIndex]);
             updated.Save();
             preferences = updated;
             UpdateSavedSelection();
@@ -303,6 +308,20 @@ public partial class MainWindow : Window
         SetThreadSelection(topology.OneThreadPerCore());
     }
 
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => SetZoom(zoomIndex - 1);
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) => SetZoom(zoomIndex + 1);
+    private void ZoomReset_Click(object sender, RoutedEventArgs e) => SetZoom(Array.IndexOf(ZoomLevels, 100));
+
+    private void SetZoom(int index)
+    {
+        zoomIndex = Math.Clamp(index, 0, ZoomLevels.Length - 1);
+        int percent = ZoomLevels[zoomIndex];
+        UiScale.ScaleX = UiScale.ScaleY = percent / 100.0;
+        ZoomReset.Content = $"{percent}%";
+        ZoomOut.IsEnabled = zoomIndex > 0;
+        ZoomIn.IsEnabled = zoomIndex < ZoomLevels.Length - 1;
+    }
+
     private void Section_Expanded(object sender, RoutedEventArgs e)
     {
         if (!ReferenceEquals(sender, e.OriginalSource) ||
@@ -310,6 +329,17 @@ public partial class MainWindow : Window
             return;
 
         AnimateReveal(content);
+        if (SystemParameters.ClientAreaAnimation)
+        {
+            var slide = new TranslateTransform();
+            content.RenderTransform = slide;
+            slide.BeginAnimation(TranslateTransform.YProperty,
+                new DoubleAnimation(-6, 0, TimeSpan.FromMilliseconds(220))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+                    FillBehavior = FillBehavior.Stop
+                });
+        }
     }
 
     private static void AnimateReveal(UIElement element)
@@ -318,7 +348,7 @@ public partial class MainWindow : Window
             return;
 
         element.BeginAnimation(UIElement.OpacityProperty,
-            new DoubleAnimation(.45, 1, TimeSpan.FromMilliseconds(180)) { FillBehavior = FillBehavior.Stop });
+            new DoubleAnimation(.65, 1, TimeSpan.FromMilliseconds(180)) { FillBehavior = FillBehavior.Stop });
     }
 
     private void SetThreadSelection(ulong mask)
@@ -409,6 +439,7 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 }
+
 
 
 

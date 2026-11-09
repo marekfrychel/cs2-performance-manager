@@ -8,7 +8,7 @@ using Microsoft.Win32;
 namespace CS2PerformanceManager;
 
 internal sealed record Preferences(ProcessPriorityClass Priority, bool StartWithWindows = false,
-    AffinityMode Affinity = AffinityMode.Ccd1, string CustomCpus = "")
+    AffinityMode Affinity = AffinityMode.Ccd1, string CustomCpus = "", int ZoomPercent = 100)
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunName = "CS2PerformanceManager";
@@ -74,6 +74,7 @@ internal sealed record Preferences(ProcessPriorityClass Priority, bool StartWith
         }
     }
 }
+
 
 
 
