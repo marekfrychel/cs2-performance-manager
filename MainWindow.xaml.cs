@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private readonly System.Drawing.Icon trayIcon;
     private static readonly int[] ZoomLevels = { 80, 90, 100, 110, 125, 150 };
     private int zoomIndex;
+    private Preferences? savedControls;
 
     public MainWindow()
     {
@@ -79,8 +80,7 @@ public partial class MainWindow : Window
             bool smt = mode is AffinityMode.Ccd0Smt or AffinityMode.Ccd1Smt;
             button.Content = $"{topology.GroupName(group)} {(smt ? "+" : "−")} SMT";
         }
-        AdvancedPanel.Header = topology.Groups.Length == 0 ? "Priorytet i autostart" :
-            topology.NamedCcds ? "Profile CCD i priorytet" : "Profile L3 i priorytet";
+        ManualProfileTitle.Visibility = topology.Groups.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         OneThreadButton.IsEnabled = threadButtons.Count != 0;
 
         RadioButton initial = profiles[preferences.Affinity];
@@ -112,6 +112,9 @@ public partial class MainWindow : Window
             StartupOption.IsEnabled = false;
             Feedback.Text += $" Nie można odczytać autostartu: {ex.Message}";
         }
+
+        savedControls = ReadControls();
+        UpdateSaveVisibility();
 
         monitor = new GameMonitor();
         var iconResource = Application.GetResourceStream(new Uri("/CS2PerformanceManager;component/App.ico", UriKind.Relative));
@@ -154,23 +157,15 @@ public partial class MainWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        var priority = ProcessPriorityClass.Normal;
-        if (HighPriority.IsChecked == true)
-            priority = ProcessPriorityClass.High;
-        else if (AbovePriority.IsChecked == true)
-            priority = ProcessPriorityClass.AboveNormal;
-
-        ulong mask = SelectedMask();
-        if (selectedMode == AffinityMode.Custom && mask == 0)
+        Preferences updated = ReadControls();
+        if (updated.Affinity == AffinityMode.Custom && updated.CustomCpus.Length == 0)
         {
             Feedback.Text = "Zaznacz co najmniej jeden wątek albo wybierz „Windows”.";
             return;
         }
 
-        string customCpus = string.Join(", ", CpuNumbers(mask));
         try
         {
-            var updated = new Preferences(priority, StartupOption.IsChecked == true, selectedMode, customCpus, ZoomLevels[zoomIndex]);
             updated.Save();
             preferences = updated;
             UpdateSavedSelection();
@@ -183,19 +178,70 @@ public partial class MainWindow : Window
 
         monitor.Retry();
         Scan();
-        Feedback.Text = "Zapisano profil i priorytet.";
-        if (!StartupOption.IsEnabled)
-            return;
-
+        Feedback.Text = "Zapisano ustawienia.";
+        bool appliedStartup = savedControls?.StartWithWindows ?? updated.StartWithWindows;
         try
         {
-            Preferences.SetStartup(preferences.StartWithWindows);
-            Feedback.Text = "Zapisano ustawienia.";
+            if (StartupOption.IsEnabled && (updated.StartWithWindows || updated.StartWithWindows != appliedStartup))
+                Preferences.SetStartup(updated.StartWithWindows);
+            appliedStartup = updated.StartWithWindows;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or InvalidOperationException)
         {
-            Feedback.Text += $" Windows nie przyjął zmiany autostartu: {ex.Message}";
+            Feedback.Text = $"Zapisano pozostałe ustawienia. Windows nie przyjął zmiany autostartu: {ex.Message}";
         }
+
+        savedControls = updated with { StartWithWindows = appliedStartup };
+        UpdateSaveVisibility();
+    }
+
+    private Preferences ReadControls()
+    {
+        var priority = HighPriority.IsChecked == true ? ProcessPriorityClass.High :
+            AbovePriority.IsChecked == true ? ProcessPriorityClass.AboveNormal : ProcessPriorityClass.Normal;
+        string customCpus = selectedMode == AffinityMode.Custom ? string.Join(", ", CpuNumbers(SelectedMask())) : "";
+        return new Preferences(priority, StartupOption.IsChecked == true, selectedMode, customCpus, ZoomLevels[zoomIndex]);
+    }
+
+    private void SettingsChanged(object sender, RoutedEventArgs e) => UpdateSaveVisibility();
+
+    private void UpdateSaveVisibility()
+    {
+        if (savedControls == null)
+            return;
+
+        Preferences current = ReadControls();
+        bool dirty = current != savedControls;
+        SaveButton.Visibility = dirty ? Visibility.Visible : Visibility.Hidden;
+        FooterCaption.Text = dirty ? "NIEZAPISANE ZMIANY" : "ZAPISANE DLA CS2";
+
+        bool profileChanged = current.Affinity != preferences.Affinity ||
+            (current.Affinity == AffinityMode.Custom && SelectedMask() != ResolveMask(preferences));
+        FocusCaption.Text = profileChanged ? "WYBRANY PROFIL" : "ZAPISANY PROFIL";
+        string name = profiles[current.Affinity].Content.ToString() ?? "";
+        if (FocusProfile.Text != name)
+        {
+            FocusProfile.Text = name;
+            if (FocusProfile.IsVisible)
+                AnimateReveal(FocusProfile);
+        }
+
+        FocusDetail.Text = current.Affinity == AffinityMode.Unchanged
+            ? "Wątki dla CS2 dobiera Windows"
+            : DescribeSelection(SelectedMask());
+    }
+
+    private void ProfileStage_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (MapPanel == null || ProfileFocus == null)
+            return;
+
+        bool narrow = e.NewSize.Width < 645;
+        Grid.SetColumnSpan(ProfileFocus, narrow ? 2 : 1);
+        Grid.SetRow(MapPanel, narrow ? 1 : 0);
+        Grid.SetColumn(MapPanel, narrow ? 0 : 1);
+        Grid.SetColumnSpan(MapPanel, narrow ? 2 : 1);
+        MapPanel.Margin = narrow ? new Thickness(0, 16, 0, 0) : new Thickness(24, 0, 0, 0);
     }
 
     private void Retry_Click(object sender, RoutedEventArgs e)
@@ -250,9 +296,15 @@ public partial class MainWindow : Window
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 7)
         });
-        var rows = new WrapPanel { Margin = new Thickness(0, 0, 0, 9) };
+        ulong[] coreMasks = cores.ToArray();
+        var rows = new WrapPanel { Margin = new Thickness(0, 0, 0, 9), HorizontalAlignment = HorizontalAlignment.Left };
+        if (coreMasks.All(core => System.Numerics.BitOperations.PopCount(core) <= 2))
+        {
+            rows.ItemWidth = 120;
+            rows.MaxWidth = 360;
+        }
         CpuGroups.Children.Add(rows);
-        foreach (ulong core in cores)
+        foreach (ulong core in coreMasks)
         {
             int[] cpus = CpuNumbers(core).ToArray();
             int coreIndex = Array.IndexOf(topology.Cores, core);
@@ -273,7 +325,8 @@ public partial class MainWindow : Window
                 {
                     Content = $"CPU {cpu}",
                     Style = (Style)FindResource("Tile"),
-                    MinWidth = 51,
+                    MinWidth = 50,
+                    Padding = new Thickness(5, 6, 5, 6),
                     Margin = new Thickness(0, 0, 4, 0)
                 };
                 AutomationProperties.SetName(button, $"Rdzeń {coreIndex}, procesor logiczny {cpu}");
@@ -292,6 +345,15 @@ public partial class MainWindow : Window
     private void Profile_Checked(object sender, RoutedEventArgs e)
     {
         selectedMode = profiles.First(entry => ReferenceEquals(entry.Value, sender)).Key;
+        bool manual = selectedMode != AffinityMode.Unchanged;
+        Visibility profileVisibility = manual ? Visibility.Visible : Visibility.Collapsed;
+        if (ManualProfiles.Visibility != profileVisibility)
+        {
+            ManualProfiles.Visibility = profileVisibility;
+            if (manual && ManualProfiles.IsVisible)
+                AnimateSection(ManualProfiles);
+        }
+        CustomOption.Tag = manual && selectedMode != AffinityMode.Custom ? "Preset" : null;
         if (selectedMode != AffinityMode.Unchanged)
             MapPanel.IsExpanded = true;
         if (selectedMode == AffinityMode.Custom)
@@ -320,6 +382,7 @@ public partial class MainWindow : Window
         ZoomReset.Content = $"{percent}%";
         ZoomOut.IsEnabled = zoomIndex > 0;
         ZoomIn.IsEnabled = zoomIndex < ZoomLevels.Length - 1;
+        UpdateSaveVisibility();
     }
 
     private void Section_Expanded(object sender, RoutedEventArgs e)
@@ -328,6 +391,11 @@ public partial class MainWindow : Window
             sender is not Expander { Content: UIElement content })
             return;
 
+        AnimateSection(content);
+    }
+
+    private static void AnimateSection(UIElement content)
+    {
         AnimateReveal(content);
         if (SystemParameters.ClientAreaAnimation)
         {
@@ -340,6 +408,32 @@ public partial class MainWindow : Window
                     FillBehavior = FillBehavior.Stop
                 });
         }
+    }
+
+    private void Interactive_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) =>
+        AnimateHover((UIElement)sender, 1.04);
+
+    private void Interactive_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) =>
+        AnimateHover((UIElement)sender, 1.0);
+
+    private static void AnimateHover(UIElement element, double target)
+    {
+        if (!SystemParameters.ClientAreaAnimation || !element.IsEnabled)
+            return;
+
+        if (element.RenderTransform is not ScaleTransform scale)
+        {
+            scale = new ScaleTransform();
+            element.RenderTransformOrigin = new Point(.5, .5);
+            element.RenderTransform = scale;
+        }
+
+        var animation = new DoubleAnimation(target, TimeSpan.FromMilliseconds(145))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
     }
 
     private static void AnimateReveal(UIElement element)
@@ -375,15 +469,16 @@ public partial class MainWindow : Window
         SelectionSummary.Text = selectedMode == AffinityMode.Unchanged
             ? "Wybrane: Windows"
             : "Wybrane: " + DescribeSelection(mask);
+        UpdateSaveVisibility();
     }
 
     private void UpdateSavedSelection()
     {
         ulong mask = ResolveMask(preferences);
         SavedSelection.Text = preferences.Affinity == AffinityMode.Unchanged
-            ? "Zapisane dla CS2: Windows"
+            ? "Windows"
             : mask == 0 ? "Zapisany wybór wątków jest niedostępny."
-            : $"Zapisane dla CS2: {profiles[preferences.Affinity].Content} · {DescribeSelection(mask)}";
+            : $"{profiles[preferences.Affinity].Content} · {DescribeSelection(mask)}";
         SavedSelection.ToolTip = mask == 0 ? null : "CPU " + string.Join(", ", CpuNumbers(mask));
     }
 
@@ -439,6 +534,12 @@ public partial class MainWindow : Window
         Application.Current.Shutdown();
     }
 }
+
+
+
+
+
+
 
 
 

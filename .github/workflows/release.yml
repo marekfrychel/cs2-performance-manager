@@ -1,0 +1,44 @@
+name: Publish Windows release
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/release.yml]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release tag
+        required: true
+        default: v0.12
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ inputs.version || 'v0.12' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build portable Windows x64 executable
+        shell: pwsh
+        run: |
+          dotnet publish CS2PerformanceManager.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableSingleFileAnalyzer=false -p:DebugType=None -o outputs/release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $hash = (Get-FileHash outputs/release/CS2PerformanceManager.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  CS2PerformanceManager.exe" | Set-Content outputs/release/SHA256SUMS.txt -Encoding ascii
+      - name: Create release and upload executable
+        shell: pwsh
+        run: |
+          gh release create "$env:RELEASE_TAG" outputs/release/CS2PerformanceManager.exe outputs/release/SHA256SUMS.txt --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title "CS2 Performance Manager $env:RELEASE_TAG" --notes-file .github/release-notes.md --latest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
