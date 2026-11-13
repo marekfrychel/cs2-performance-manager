@@ -9,7 +9,7 @@ on:
       version:
         description: Release tag
         required: true
-        default: v0.12
+        default: v0.13
 
 permissions:
   contents: write
@@ -23,7 +23,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     env:
-      RELEASE_TAG: ${{ inputs.version || 'v0.12' }}
+      RELEASE_TAG: ${{ inputs.version || 'v0.13' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4

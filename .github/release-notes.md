@@ -4,7 +4,8 @@ Pobierz **CS2PerformanceManager.exe** z sekcji Assets i uruchom na Windows 11 x6
 
 ## W tej wersji
 
-- Interfejs Graphite z wyborem profili i mapą wątków.
+- Rozmiar pamięci L3 na mapie i w podpowiedziach profili.
+- Oznaczenie 3D V-Cache przy grupach X3D z powiększoną pamięcią L3.
 - Profile grup CCD/L3 oraz ręczny wybór procesorów logicznych.
 - Priorytet Normal, Above Normal lub High.
 - Autostart po zalogowaniu, ikona w zasobniku i ustawienia JSON.
@@ -15,3 +16,4 @@ Profil jest automatycznie nakładany po wykryciu działającego cs2.exe. Ta wers
 EXE jest niepodpisane cyfrowo. Smart App Control lub inne mechanizmy ochrony Windows mogą zablokować uruchomienie.
 
 Suma kontrolna pliku jest dostępna w **SHA256SUMS.txt**.
+

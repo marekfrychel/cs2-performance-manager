@@ -79,6 +79,8 @@ public partial class MainWindow : Window
             int group = mode is AffinityMode.Ccd0 or AffinityMode.Ccd0Smt ? 0 : 1;
             bool smt = mode is AffinityMode.Ccd0Smt or AffinityMode.Ccd1Smt;
             button.Content = $"{topology.GroupName(group)} {(smt ? "+" : "−")} SMT";
+            if (button.IsEnabled)
+                button.ToolTip = topology.GroupDescription(group);
         }
         ManualProfileTitle.Visibility = topology.Groups.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         OneThreadButton.IsEnabled = threadButtons.Count != 0;
@@ -278,7 +280,7 @@ public partial class MainWindow : Window
             for (int i = 0; i < topology.Groups.Length; i++)
             {
                 ulong domain = topology.Groups[i];
-                AddCpuGroup(topology.GroupName(i), topology.Cores.Where(core => (core & domain) == core));
+                AddCpuGroup(topology.GroupDescription(i), topology.Cores.Where(core => (core & domain) == core));
             }
         }
         else if (topology.Cores.Length != 0)

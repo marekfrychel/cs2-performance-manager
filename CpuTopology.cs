@@ -46,7 +46,9 @@ internal static class CpuTopology
 
             cores = detected.OrderBy(core => BitOperations.TrailingZeroCount(core)).ToArray();
             bool namedCcds = Regex.IsMatch(cpu, @"\bAMD Ryzen [59] (5600X|5900X)\b", RegexOptions.IgnoreCase);
-            return new CpuLayout(cpu, cores, OrderGroups(cores, ReadMasks(Cache)), "", namedCcds);
+            var cacheSizes = new Dictionary<ulong, int>();
+            ulong[] groups = OrderGroups(cores, ReadMasks(Cache, cacheSizes));
+            return new CpuLayout(cpu, cores, groups, "", namedCcds, cacheSizes);
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or UnauthorizedAccessException or SecurityException)
         {
@@ -72,7 +74,7 @@ internal static class CpuTopology
         return caches.Distinct().OrderBy(mask => BitOperations.TrailingZeroCount(mask)).ToArray();
     }
 
-    private static ulong[] ReadMasks(int relationship)
+    private static ulong[] ReadMasks(int relationship, Dictionary<ulong, int>? cacheSizes = null)
     {
         uint length = 0;
         if (GetLogicalProcessorInformationEx(relationship, IntPtr.Zero, ref length) ||
@@ -109,7 +111,10 @@ internal static class CpuTopology
                     if (groupCount != 1 && !(relationship == Cache && groupCount == 0))
                         throw new InvalidOperationException("nieobsługiwana liczba grup w rekordzie topologii");
 
-                    masks.Add(unchecked((ulong)Marshal.ReadInt64(record, affinityOffset)));
+                    ulong mask = unchecked((ulong)Marshal.ReadInt64(record, affinityOffset));
+                    masks.Add(mask);
+                    if (cacheSizes != null)
+                        cacheSizes[mask] = Math.Max(cacheSizes.GetValueOrDefault(mask), Marshal.ReadInt32(record, 12));
                 }
 
                 offset += size;
@@ -130,9 +135,22 @@ internal static class CpuTopology
 
 
 
-internal sealed record CpuLayout(string Name, ulong[] Cores, ulong[] Groups, string Note, bool NamedCcds = false)
+internal sealed record CpuLayout(string Name, ulong[] Cores, ulong[] Groups, string Note,
+    bool NamedCcds = false, IReadOnlyDictionary<ulong, int>? CacheSizes = null)
 {
     public string GroupName(int index) => NamedCcds ? $"CCD{index}" : $"Grupa L3 {index + 1}";
+
+    public string GroupDescription(int index)
+    {
+        string name = GroupName(index);
+        if (CacheSizes == null || !CacheSizes.TryGetValue(Groups[index], out int bytes) || bytes <= 0)
+            return name;
+
+        string description = $"{name} · {bytes / (1024 * 1024)} MB L3";
+        return Name.Contains("X3D", StringComparison.OrdinalIgnoreCase) && bytes > 32 * 1024 * 1024
+            ? $"{description} · 3D V-Cache"
+            : description;
+    }
 
     public ulong OneThreadPerCore(ulong domain = ulong.MaxValue) => Cores
         .Where(core => (core & domain) == core)
